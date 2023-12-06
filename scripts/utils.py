@@ -11,9 +11,19 @@ config_path = "/Users/agustinahermelo/Desktop/Coder-Data-Eng/config/config.ini"
 config_section = "redshift"
 config_section_api= "credenciales_api"
 
-""" Función para obtener datos de la API y guardarlos en un DF"""
-
 def get_data(url_base, endpoint, params, headers):
+    """
+    Realiza una solicitud GET a una API y devuelve los datos en un DataFrame.
+
+    Parameters:
+    url_base (str): URL base de la API.
+    endpoint (str): Endpoint específico de la API.
+    params (dict): Parámetros para la solicitud GET.
+    headers (dict): Encabezados para la solicitud.
+
+    Returns:
+    df: DataFrame con los datos obtenidos de la API, o None si no se encuentran datos o hay un error.
+    """
     try:
         logging.info(f"Obteniendo datos de la API..")
         # Construyo la URL completa para la API
@@ -40,8 +50,17 @@ def get_data(url_base, endpoint, params, headers):
         logging.info(f"No se pudo acceder a la API: {e}")
         return None
 
-""" Función para transformar los datos obtenidos de la API en el DF """
 def transform_data(df, stock_ticker):
+    """
+    Añade una columna de identificador de stock al DataFrame y renombra ciertas columnas.
+
+    Parameters:
+    df (pandas.DataFrame): DataFrame con datos de stock.
+    stock_ticker (str): Ticker del stock que va a añadir.
+
+    Returns:
+    pandas.DataFrame: DataFrame transformado con la columna adicional y columnas renombradas.
+    """
     # Inserto una nueva columna para el 'Ticker' al inicio del DF
     df.insert(0, 'Ticker', stock_ticker)
     # Le cambio el nombre de la columna 'open' a 'open_price' pq open es una palabra clave
@@ -50,10 +69,20 @@ def transform_data(df, stock_ticker):
 
     return df
 
-""" Función para construir la cadena de conexión a la base de datos """
-
 def build_conn_string(config_path, config_section):
+    """
+    Construye una cadena de conexión para una base de datos PostgreSQL a partir de un archivo de configuración INI.
 
+    Parameters:
+    config_path (str): Ruta al archivo de configuración INI.
+    config_section (str): Sección dentro del archivo de configuración que contiene los parámetros de la base de datos.
+
+    Returns:
+    str: Cadena de conexión para la base de datos PostgreSQL.
+
+    El archivo INI debe contener al menos los siguientes parámetros en la sección especificada:
+    host, port, dbname, username, pwd.
+    """
     #Leo el archivo de config
     parser = ConfigParser()
     parser.read(config_path)
@@ -71,11 +100,20 @@ def build_conn_string(config_path, config_section):
 
     return conn_string
 
-
-
-""" Función para conectar a la base de datos """
-
 def connect_to_db(config_file, section):
+    """
+    Establece una conexión con la base de datos utilizando parámetros de configuración.
+
+    Parameters:
+    config_file (str): Ruta al archivo de configuración que contiene los detalles de conexión.
+    section (str): Sección dentro del archivo de configuración que contiene los parámetros específicos.
+
+    Returns:
+    sqlalchemy.engine.base.Engine: Objeto de conexión a la base de datos, o None si la conexión falla.
+
+    Raises:
+    Exception: Si la sección especificada no se encuentra en el archivo de configuración.
+    """
     try:
         parser = ConfigParser()
         parser.read(config_file)
@@ -99,15 +137,16 @@ def connect_to_db(config_file, section):
         logging.error(f"Error al conectarse a la base de datos: {e}")
         return None
 
-
 def load_to_sql(df, table_name, engine, if_exists="replace"):
     """
-    Carga un DataFrame en la base de datos especificada.
+    Carga un DataFrame en una tabla de base de datos especificada.
 
     Parameters:
-    df (pandas.DataFrame): El DataFrame a cargar en la base de datos.
-    table_name (str): El nombre de la tabla en la base de datos.
-    engine (sqlalchemy.engine.base.Engine): Un objeto de conexión a la base de datos.
+    df (pandas.DataFrame): DataFrame a cargar.
+    table_name (str): Nombre de la tabla destino.
+    engine (sqlalchemy.engine.base.Engine): Motor de conexión a la base de datos.
+    if_exists (str): Acción a realizar si la tabla existe ('replace', 'append', etc.).
+
     """
     try:
         logging.info("Cargando datos en la base de datos...")
@@ -122,8 +161,17 @@ def load_to_sql(df, table_name, engine, if_exists="replace"):
     except Exception as e:
         logging.error(f"Error al cargar los datos en la base de datos: {e}")
 
-"""Función para cargar los datos en la base de datos"""
 def load_to_db(df):
+    """
+    Carga datos en una tabla de la base de datos y ejecuta una instrucción MERGE.
+
+    Parameters:
+    df (pandas.DataFrame): DataFrame con los datos a cargar.
+
+
+    Utiliza la función 'connect_to_db' para establecer la conexión y 'load_to_sql' para la carga de datos.
+    La función ejecuta operaciones de TRUNCATE y MERGE en la base de datos.
+    """
     engine = connect_to_db(config_path, "redshift")
     if engine is not None:
         with engine.connect() as conn:
@@ -153,10 +201,22 @@ def load_to_db(df):
                             """)
 
 def load_table_to_df(engine, table_name, limit=None):
+    """
+    Carga datos de una tabla de base de datos en un DataFrame.
+
+    Parameters:
+    engine (sqlalchemy.engine.base.Engine): Motor de conexión a la base de datos.
+    table_name (str): Nombre de la tabla de donde cargar los datos.
+    limit (int, opcional): Número máximo de filas a cargar.
+
+    Returns:
+    pandas.DataFrame: DataFrame con los datos cargados de la tabla especificada.
+
+    Si 'limit' es None, carga todas las filas de la tabla.
+    """
     query = f"SELECT * FROM {table_name}"
     if limit is not None:
         query += f" LIMIT {limit}"
 
     df = pd.read_sql(query, engine)
     return df
-
